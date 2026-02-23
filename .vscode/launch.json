@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // Run the app locally with the DB running in Docker.
+            // Start the DB first: docker compose up db
+            "name": "FastAPI: debug (DB in Docker)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--host", "0.0.0.0",
+                "--port", "8000"
+                // --reload is intentionally omitted: it spawns a child process
+                // that disconnects the debugger on every file change.
+            ],
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env",
+            "env": {
+                // Override the Docker service hostname with localhost
+                "DATABASE_URL": "postgresql+asyncpg://postgres:postgres@localhost:5432/orders"
+            },
+            "jinja": true,
+            "justMyCode": false,
+            "python": "${workspaceFolder}/.venv/bin/python"
+        }
+    ]
+}

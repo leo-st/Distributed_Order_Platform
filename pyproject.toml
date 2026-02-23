@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "food-ordering-platform"
+version = "0.1.0"
+description = "Phase 1 — Resilient Monolith"
+authors = []
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12,<3.14"
+fastapi = "^0.115.0"
+uvicorn = { version = "^0.30.6", extras = ["standard"] }
+sqlalchemy = { version = "^2.0.35", extras = ["asyncio"] }
+asyncpg = "^0.30.0"
+pydantic = "^2.9.2"
+pydantic-settings = "^2.5.2"
+email-validator = "^2.2.0"
+python-json-logger = "^2.0.7"
+
+[tool.poetry.group.dev.dependencies]
+debugpy = "^1.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry-core.backends.BuildBackend"
