@@ -29,7 +29,7 @@ ENV/
 
 # IDE
 .idea/
-.vscode/settings.json
+.vscode/*.code-snippets
 *.swp
 *.swo
 .DS_Store
