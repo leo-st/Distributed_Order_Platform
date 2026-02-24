@@ -1,6 +1,7 @@
 import logging
 import uuid
 
+from aiokafka import AIOKafkaProducer
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,10 @@ def _request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
 
+def _producer(request: Request) -> AIOKafkaProducer:
+    return request.app.state.kafka_producer
+
+
 @router.post("", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def place_order(
     body: OrderCreate,
@@ -23,12 +28,13 @@ async def place_order(
     db: AsyncSession = Depends(get_db),
 ) -> OrderResponse:
     request_id = _request_id(request)
+    producer = _producer(request)
     logger.info(
         "Received place_order request",
         extra={"request_id": request_id, "customer_email": str(body.customer_email)},
     )
     try:
-        return await order_service.create_order(db, body, request_id)
+        return await order_service.create_order(db, body, request_id, producer)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
 

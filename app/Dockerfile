@@ -13,5 +13,6 @@ RUN poetry install --no-root --only main --no-interaction
 
 # Copy app source (overridden by the volume mount in docker-compose during dev)
 COPY app ./app
+COPY shared ./shared
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

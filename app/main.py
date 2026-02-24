@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
+from aiokafka import AIOKafkaProducer
 from fastapi import FastAPI
 
 from app.config import settings
@@ -20,16 +21,26 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await seed_menu_items()
+
+    producer = AIOKafkaProducer(
+        bootstrap_servers=settings.kafka_bootstrap_servers,
+        enable_idempotence=True,
+    )
+    await producer.start()
+    app.state.kafka_producer = producer
     logger.info("Startup complete")
+
     yield
-    logger.info("Shutting down")
+
+    await producer.stop()
     await engine.dispose()
+    logger.info("Shutting down")
 
 
 app = FastAPI(
     title="Food Ordering Platform",
-    description="Phase 1 — Resilient Monolith",
-    version="1.0.0",
+    description="Phase 2 — Event-Driven Architecture",
+    version="2.0.0",
     lifespan=lifespan,
 )
 

@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 
-from app.config import settings
+from payment_service.config import settings
 
 logger = logging.getLogger(__name__)
 

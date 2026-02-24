@@ -43,7 +43,7 @@ The final system will eventually include:
 - Observability stack (Prometheus, Grafana, OpenTelemetry)
 - Kubernetes deployment
 
-# Phase 1 — Resilient Monolith (Months 0–2)
+# Phase 1 — Resilient Monolith
 ### Architecture
 Single FastAPI service.
 
@@ -73,7 +73,7 @@ Single FastAPI service.
 - Logs without correlation IDs are nearly useless
 - Crashes during transactions create edge cases
 
-# Phase 2 — Event-Driven Architecture (Months 3–5)
+# Phase 2 — Event-Driven Architecture
 The monolith is split into services.
 
 ### Services
@@ -110,7 +110,7 @@ The monolith is split into services.
 - Consumer rebalance affects real systems
 - Data loss can occur in subtle ways
 
-# Phase 3 — Observability (Months 5–7)
+# Phase 3 — Observability
 
 The system is now complex enough to require visibility.
 
@@ -138,7 +138,7 @@ The system is now complex enough to require visibility.
 - Identifying bottlenecks
 - Root cause isolation
 
-# Phase 4 — Load & Chaos Testing (Months 7–9)
+# Phase 4 — Load & Chaos Testing
 
 Now the system is stress-tested.
 
@@ -159,7 +159,7 @@ Now the system is stress-tested.
 - Automatic recovery
 - No cascading system collapse
 
-# Phase 5 — Kubernetes Deployment (Months 9–12)
+# Phase 5 — Kubernetes Deployment
 
 Move to real distributed infrastructure.
 

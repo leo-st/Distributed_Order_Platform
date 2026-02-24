@@ -2,6 +2,7 @@ import logging
 import uuid
 from decimal import Decimal
 
+from aiokafka import AIOKafkaProducer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -16,7 +17,7 @@ from app.schemas.order import (
     OrderResponse,
     PaymentAttemptResponse,
 )
-from app.services import payment_service
+from shared.events import OrderItemEvent, OrderPlacedEvent
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ async def create_order(
     db: AsyncSession,
     order_data: OrderCreate,
     request_id: str,
+    producer: AIOKafkaProducer,
 ) -> OrderResponse:
     # 1. Validate menu items
     menu_item_ids = [item.menu_item_id for item in order_data.items]
@@ -150,7 +152,7 @@ async def create_order(
             }
         )
 
-    # 3. Persist order + items (status: PROCESSING while payment runs)
+    # 3. Persist order + items (status stays PROCESSING until payment_service updates it)
     order = Order(
         customer_name=order_data.customer_name,
         customer_email=str(order_data.customer_email),
@@ -166,7 +168,7 @@ async def create_order(
     await db.commit()
 
     logger.info(
-        "Order created, initiating payment",
+        "Order persisted, publishing order.placed",
         extra={
             "order_id": str(order.id),
             "request_id": request_id,
@@ -175,38 +177,34 @@ async def create_order(
         },
     )
 
-    # 4. Process payment (handles retries + circuit breaker internally)
-    result = await payment_service.process_payment(
+    # 4. Publish order.placed event — payment_service will pick this up asynchronously
+    event = OrderPlacedEvent(
+        correlation_id=request_id,
         order_id=order.id,
-        amount=float(total),
-        request_id=request_id,
+        customer_name=order_data.customer_name,
+        customer_email=str(order_data.customer_email),
+        total_amount=total,
+        items=[
+            OrderItemEvent(
+                menu_item_id=line["menu_item_id"],
+                quantity=line["quantity"],
+                unit_price=line["unit_price"],
+                subtotal=line["subtotal"],
+            )
+            for line in line_items
+        ],
     )
-
-    # 5. Record payment attempt
-    pa = PaymentAttempt(
-        order_id=order.id,
-        status=PaymentStatus.SUCCESS if result.success else PaymentStatus.FAILED,
-        amount=total,
-        attempt_count=result.attempt_count,
-        error_message=result.error_message,
-        processing_time_ms=result.processing_time_ms,
+    await producer.send_and_wait(
+        "order.placed",
+        key=str(order.id).encode(),
+        value=event.model_dump_json().encode(),
     )
-    db.add(pa)
-
-    # 6. Finalise order status
-    order.status = OrderStatus.COMPLETED if result.success else OrderStatus.FAILED
-    await db.commit()
 
     logger.info(
-        "Order finalised",
-        extra={
-            "order_id": str(order.id),
-            "request_id": request_id,
-            "status": order.status.value,
-            "payment_success": result.success,
-        },
+        "Published order.placed event",
+        extra={"order_id": str(order.id), "request_id": request_id},
     )
 
-    # 7. Re-fetch with all relationships for the response
+    # 5. Return immediately — payment is async; status=PROCESSING, payment_attempts=[]
     order = await _fetch_order(db, order.id)
     return _build_response(order)
