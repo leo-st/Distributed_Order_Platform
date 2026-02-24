@@ -80,7 +80,16 @@ async def _handle_message(msg, consumer: AIOKafkaConsumer, producer: AIOKafkaPro
             await consumer.commit()
             return
 
-        # --- Persist PaymentAttempt + update Order status ---
+        # --- Persist PaymentAttempt + update Order status atomically ---
+        # Fetch order first so both writes land in a single commit.
+        # If we crash before commit, neither write happens and the idempotency
+        # check (no PaymentAttempt row) will correctly allow a retry on restart.
+        order_result = await db.execute(select(Order).where(Order.id == order_id))
+        order = order_result.scalars().first()
+        if order is not None:
+            order.status = OrderStatus.COMPLETED if result.success else OrderStatus.FAILED
+            order.updated_at = datetime.utcnow()
+
         pa = PaymentAttempt(
             order_id=order_id,
             status=PaymentStatus.SUCCESS if result.success else PaymentStatus.FAILED,
@@ -91,13 +100,7 @@ async def _handle_message(msg, consumer: AIOKafkaConsumer, producer: AIOKafkaPro
         )
         db.add(pa)
 
-        order_result = await db.execute(select(Order).where(Order.id == order_id))
-        order = order_result.scalars().first()
-        if order is not None:
-            order.status = OrderStatus.COMPLETED if result.success else OrderStatus.FAILED
-            order.updated_at = datetime.utcnow()
-
-        await db.commit()
+        await db.commit()  # atomic: both Order.status and PaymentAttempt written together
 
         logger.info(
             "Order payment finalised",
