@@ -6,13 +6,25 @@ Incremental changelog — updated on every commit. Load this file at session sta
 
 ## Current State
 
-**Phase**: Phase 1 — Resilient Monolith (complete)
-**Stack**: FastAPI · asyncpg · SQLAlchemy 2.x (async) · PostgreSQL 16 · Docker Compose · Poetry
+**Phase**: Phase 2 — Event-Driven Architecture (complete)
+**Stack**: FastAPI · asyncpg · SQLAlchemy 2.x (async) · PostgreSQL 16 · Kafka (KRaft, apache/kafka) · aiokafka · Docker Compose · Poetry
+**Services**: `app` (API), `payment_service` (Kafka consumer), `notification_service` (Kafka consumer)
 **Endpoints**: `POST /orders`, `GET /orders/{order_id}`, `GET /health`, `GET /docs`
 
 ---
 
 ## Changelog
+
+### 2026-02-25 — Phase 2: event-driven architecture with Kafka
+
+**Commits**: `48642e9`
+
+- Split monolith into three services: `app` (API), `payment_service`, `notification_service`, connected via Kafka (KRaft, `apache/kafka`)
+- `POST /orders` now returns 201 immediately with `status=processing`; payment runs asynchronously in `payment_service`
+- `payment_service` consumes `order.placed`, processes payment, updates DB, publishes `payment.completed`; idempotency check prevents duplicate processing on replay; unprocessable messages forwarded to `payment.dlq`
+- `notification_service` consumes `payment.completed` and logs a structured notification
+- Added `shared/events.py` with Pydantic v2 event schemas (`OrderPlacedEvent`, `PaymentCompletedEvent`) copied into each container at build time
+- Removed pgadmin from Docker Compose (replaced by local DBeaver); switched Kafka image from bitnami to `apache/kafka` with correct healthcheck path (`/opt/kafka/bin/kafka-topics.sh`)
 
 ### 2026-02-24 — Phase 1 scaffold complete
 
