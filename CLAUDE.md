@@ -83,6 +83,15 @@ Configured in `.env` (see `.env.example`). Key ones:
 | `CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Failures before circuit opens |
 | `CIRCUIT_BREAKER_RECOVERY_TIMEOUT` | `30` | Seconds before trying half-open |
 
+## Project History Log
+
+`project_history.md` in the repo root is a running changelog. **Update it on every commit** — add a new entry at the top of the Changelog section with:
+
+- Date, short description, commit hash(es)
+- 2–6 bullet points summarising what changed and why
+
+This file is the fastest way to get up to speed in a new session. Reference it instead of re-explaining the project.
+
 ## Accessing Services Locally
 
 | Service | URL |

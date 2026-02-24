@@ -1,0 +1,43 @@
+# Project History
+
+Incremental changelog — updated on every commit. Load this file at session start instead of re-explaining the project.
+
+---
+
+## Current State
+
+**Phase**: Phase 1 — Resilient Monolith (complete)
+**Stack**: FastAPI · asyncpg · SQLAlchemy 2.x (async) · PostgreSQL 16 · Docker Compose · Poetry
+**Endpoints**: `POST /orders`, `GET /orders/{order_id}`, `GET /health`, `GET /docs`
+
+---
+
+## Changelog
+
+### 2026-02-24 — Phase 1 scaffold complete
+
+**Commits**: `2f91eb6` → `7ad6289`
+
+What was built:
+- Full FastAPI app scaffolded under `app/` (see `CLAUDE.md` for directory tree)
+- Async SQLAlchemy engine with `asyncpg`; all queries use `selectinload()` — no lazy loading
+- `MenuItem`, `Order`, `OrderItem`, `PaymentAttempt` ORM models
+- `POST /orders` creates an order, runs mock payment with retries + circuit breaker, always returns HTTP 201 (payment outcome in `status` field)
+- `GET /orders/{order_id}` fetches order with items and payment attempt
+- Custom `CircuitBreaker` dataclass in `payment_service.py` (intentionally readable, no external library)
+- Manual retry loop (not tenacity) for educational clarity
+- One `PaymentAttempt` record per order, written after all retry attempts complete
+- Menu items seeded in FastAPI lifespan startup (`seed_menu_items()`) if table is empty
+- `X-Request-ID` middleware injects request ID into every request/response
+- JSON structured logging via `python-json-logger`
+- Switched from pip to **Poetry** for dependency management
+- VSCode debug config + Pylance pointed at Poetry venv
+- pgAdmin available at `:5050` (admin@admin.com / admin)
+
+---
+
+<!-- Add new entries above this line, newest first. Format:
+### YYYY-MM-DD — short description
+**Commits**: `hash` (or hash range)
+What changed and why (2-6 bullet points).
+-->
