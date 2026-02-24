@@ -15,6 +15,13 @@ Incremental changelog — updated on every commit. Load this file at session sta
 
 ## Changelog
 
+### 2026-02-25 — Fix: atomic DB write in payment_service consumer
+
+**Commits**: `2611ce9`
+
+- Crash between `db.add(pa)` and `db.commit()` left `PaymentAttempt` unwritten, causing idempotency check to miss it on restart and re-charge the payment gateway
+- Fix: fetch `Order` before creating `PaymentAttempt` so both writes land in a single `db.commit()` — either both succeed or neither does
+
 ### 2026-02-25 — Phase 2: event-driven architecture with Kafka
 
 **Commits**: `48642e9`
