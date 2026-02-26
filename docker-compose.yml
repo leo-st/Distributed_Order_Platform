@@ -14,6 +14,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     restart: unless-stopped
 
   db:
@@ -61,6 +63,8 @@ services:
     build:
       context: .
       dockerfile: payment_service/Dockerfile
+    ports:
+      - "8001:8001"
     env_file:
       - .env
     depends_on:
@@ -68,19 +72,55 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     restart: unless-stopped
 
   notification_service:
     build:
       context: .
       dockerfile: notification_service/Dockerfile
+    ports:
+      - "8002:8002"
     env_file:
       - .env
     depends_on:
       kafka:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4318:4318"     # OTLP HTTP
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command: ['--config.file=/etc/prometheus/prometheus.yml']
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards
 
 volumes:
   postgres_data:
   kafka_data:
+  prometheus_data:
+  grafana_data:

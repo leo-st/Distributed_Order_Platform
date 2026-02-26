@@ -6,14 +6,27 @@ Incremental changelog — updated on every commit. Load this file at session sta
 
 ## Current State
 
-**Phase**: Phase 2 — Event-Driven Architecture (complete)
-**Stack**: FastAPI · asyncpg · SQLAlchemy 2.x (async) · PostgreSQL 16 · Kafka (KRaft, apache/kafka) · aiokafka · Docker Compose · Poetry
-**Services**: `app` (API), `payment_service` (Kafka consumer), `notification_service` (Kafka consumer)
-**Endpoints**: `POST /orders`, `GET /orders/{order_id}`, `GET /health`, `GET /docs`
+**Phase**: Phase 3 — Observability (complete)
+**Stack**: FastAPI · asyncpg · SQLAlchemy 2.x (async) · PostgreSQL 16 · Kafka (KRaft, apache/kafka) · aiokafka · Docker Compose · Poetry · prometheus-client · opentelemetry-sdk · Jaeger · Grafana
+**Services**: `app` (API), `payment_service` (Kafka consumer), `notification_service` (Kafka consumer), `jaeger`, `prometheus`, `grafana`
+**Endpoints**: `POST /orders`, `GET /orders/{order_id}`, `GET /health`, `GET /docs`, `GET /metrics`
+**Dashboards**: Grafana at :3000 — orders rate, HTTP latency p50/p95/p99, error rate, payment outcomes, circuit breaker state, DLQ total
+**Traces**: Jaeger at :16686 — full trace from HTTP → Kafka publish → Kafka consume → DB → Kafka publish → Kafka consume
 
 ---
 
 ## Changelog
+
+### 2026-02-26 — Phase 3: observability (Prometheus + OTel/Jaeger + Grafana)
+
+**Commits**: TBD
+
+- Added `prometheus-client` + OpenTelemetry SDK/exporter packages; all three services now expose Prometheus metrics and export OTel traces to Jaeger over OTLP HTTP (port 4318)
+- `app` exposes `/metrics` as a mounted ASGI sub-app; `payment_service` and `notification_service` run `prometheus_client.start_http_server()` on ports 8001/8002 respectively
+- `shared/tracing.py` provides a single `setup_tracing(service_name, otlp_endpoint)` helper called at process startup in every service
+- OTel trace context is propagated across Kafka message boundaries using W3C `traceparent` headers (`inject()` on publish, `extract()` on consume), enabling end-to-end traces in Jaeger
+- New metrics: `orders_created_total`, HTTP request count + latency histogram (`MetricsMiddleware`), `payment_messages_consumed_total`, `payment_outcomes_total`, `payment_processing_duration_seconds`, `payment_circuit_breaker_state` gauge, `notifications_sent_total`
+- Added `jaeger`, `prometheus`, and `grafana` services to Docker Compose; Grafana auto-provisions the Prometheus datasource and a pre-built platform dashboard
 
 ### 2026-02-25 — Fix: atomic DB write in payment_service consumer
 

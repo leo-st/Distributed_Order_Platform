@@ -6,14 +6,19 @@ Starts AIOKafka consumer + producer, then runs the consumer loop.
 import asyncio
 import logging
 
+import prometheus_client
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from payment_service.config import settings
 from payment_service.consumer import run_consumer
 from payment_service.utils.logging import setup_logging
+from shared.tracing import setup_tracing
 
 setup_logging(settings.log_level)
 logger = logging.getLogger(__name__)
+
+prometheus_client.start_http_server(settings.metrics_port)
+setup_tracing("payment-service", settings.otlp_endpoint)
 
 
 async def main() -> None:
@@ -36,6 +41,7 @@ async def main() -> None:
         extra={
             "bootstrap_servers": settings.kafka_bootstrap_servers,
             "consumer_group": settings.kafka_consumer_group,
+            "metrics_port": settings.metrics_port,
         },
     )
 

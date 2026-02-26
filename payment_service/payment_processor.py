@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from payment_service.config import settings
+from payment_service.metrics import CIRCUIT_STATE
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,13 @@ class CircuitState(str, Enum):
     HALF_OPEN = "half_open"
 
 
+_STATE_GAUGE_VALUES = {
+    CircuitState.CLOSED: 0,
+    CircuitState.HALF_OPEN: 1,
+    CircuitState.OPEN: 2,
+}
+
+
 @dataclass
 class CircuitBreaker:
     failure_threshold: int
@@ -68,6 +76,7 @@ class CircuitBreaker:
             and time.monotonic() - self._last_failure_time >= self.recovery_timeout
         ):
             self._state = CircuitState.HALF_OPEN
+            CIRCUIT_STATE.set(_STATE_GAUGE_VALUES[CircuitState.HALF_OPEN])
             logger.info("Circuit breaker transitioned to HALF_OPEN")
         return self._state
 
@@ -77,6 +86,7 @@ class CircuitBreaker:
     def record_success(self) -> None:
         self._failures = 0
         self._state = CircuitState.CLOSED
+        CIRCUIT_STATE.set(_STATE_GAUGE_VALUES[CircuitState.CLOSED])
         logger.debug("Circuit breaker: success recorded, state=CLOSED")
 
     def record_failure(self) -> None:
@@ -84,6 +94,7 @@ class CircuitBreaker:
         self._last_failure_time = time.monotonic()
         if self._failures >= self.failure_threshold and self._state != CircuitState.OPEN:
             self._state = CircuitState.OPEN
+            CIRCUIT_STATE.set(_STATE_GAUGE_VALUES[CircuitState.OPEN])
             logger.warning(
                 "Circuit breaker OPENED after %d consecutive failures",
                 self._failures,

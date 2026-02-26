@@ -3,6 +3,9 @@ import uuid
 from decimal import Decimal
 
 from aiokafka import AIOKafkaProducer
+from opentelemetry import trace
+from opentelemetry.propagate import inject
+from prometheus_client import Counter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -20,6 +23,9 @@ from app.schemas.order import (
 from shared.events import OrderItemEvent, OrderPlacedEvent
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
+
+ORDERS_CREATED = Counter("orders_created_total", "Total orders created")
 
 _MENU_SEED = [
     {"name": "Margherita Pizza", "description": "Classic tomato & mozzarella", "price": Decimal("12.99")},
@@ -194,11 +200,18 @@ async def create_order(
             for line in line_items
         ],
     )
+    headers: dict[str, str] = {}
+    inject(headers)  # writes W3C traceparent + tracestate into headers dict
+    kafka_headers = [(k, v.encode()) for k, v in headers.items()]
+
     await producer.send_and_wait(
         "order.placed",
         key=str(order.id).encode(),
         value=event.model_dump_json().encode(),
+        headers=kafka_headers,
     )
+
+    ORDERS_CREATED.inc()
 
     logger.info(
         "Published order.placed event",

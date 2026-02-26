@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Kafka
     kafka_bootstrap_servers: str = "kafka:9092"
 
+    # Observability
+    otlp_endpoint: str = "http://jaeger:4318/v1/traces"
+
     model_config = {"env_file": ".env"}
 
 

@@ -6,13 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A food ordering platform built iteratively across multiple phases to explore distributed systems engineering. See `README.md` for the full roadmap.
 
-**Current phase: Phase 2 — Event-Driven Architecture**
-Three services (API, Payment, Notification) connected via Kafka (KRaft), sharing a PostgreSQL database.
+**Current phase: Phase 3 — Observability**
+Three services with full observability: Prometheus metrics, OpenTelemetry distributed tracing (Jaeger), and Grafana dashboards.
 
 ## Common Commands
 
 ```bash
-# Start all services (app + db + kafka + payment_service + notification_service + pgadmin)
+# Start all services (app + db + kafka + payment_service + notification_service + jaeger + prometheus + grafana)
 docker compose up --build
 
 # Start in background
@@ -31,7 +31,7 @@ docker compose down -v && docker compose up --build
 docker compose exec app python -c "..."
 ```
 
-## Architecture (Phase 2)
+## Architecture (Phase 3)
 
 ```
 Event flow:
@@ -57,26 +57,38 @@ app/                        # API Service
 ├── services/
 │   └── order_service.py    # Order business logic, publishes order.placed
 ├── middleware/
-│   └── request_id.py    # Injects X-Request-ID into every request/response
+│   ├── request_id.py    # Injects X-Request-ID into every request/response
+│   └── metrics.py       # Prometheus HTTP request counter + latency histogram
 └── utils/
     └── logging.py       # JSON structured logging via python-json-logger
 
 payment_service/            # Kafka consumer + payment logic
 ├── Dockerfile
 ├── config.py, database.py, models.py
-├── payment_processor.py  # Mock payment gateway + CircuitBreaker + manual retry
-├── consumer.py           # at-least-once + idempotency + DLQ
-├── main.py
+├── payment_processor.py  # Mock payment gateway + CircuitBreaker + manual retry + CIRCUIT_STATE gauge
+├── consumer.py           # at-least-once + idempotency + DLQ + OTel trace extraction
+├── metrics.py            # MESSAGES_CONSUMED, PROCESSING_TIME, PAYMENT_OUTCOMES, CIRCUIT_STATE
+├── main.py               # starts prometheus_client.start_http_server(8001) + OTel setup
 └── utils/logging.py
 
 notification_service/       # Kafka consumer, logs only
 ├── Dockerfile
 ├── config.py, consumer.py, main.py
-└── utils/logging.py
+├── metrics.py            # NOTIFICATIONS counter
+└── utils/logging.py      # main.py starts prometheus_client.start_http_server(8002)
 
-shared/                     # Event Pydantic schemas (copied into each container)
+shared/                     # Event schemas + tracing helper (copied into each container)
 ├── __init__.py
-└── events.py               # OrderPlacedEvent, PaymentCompletedEvent, EventBase
+├── events.py               # OrderPlacedEvent, PaymentCompletedEvent, EventBase
+└── tracing.py              # setup_tracing(service_name, otlp_endpoint) — OTel init
+
+monitoring/                 # Infra config (not mounted into app containers)
+├── prometheus.yml          # scrape targets: app:8000, payment_service:8001, notification_service:8002
+└── grafana/
+    ├── provisioning/
+    │   ├── datasources/prometheus.yml   # auto-register Prometheus data source
+    │   └── dashboards/dashboards.yml    # load JSON dashboards from /etc/grafana/dashboards
+    └── dashboards/platform.json         # pre-built dashboard (orders rate, latency, payment outcomes, circuit breaker)
 ```
 
 ## Kafka Topics
@@ -107,7 +119,13 @@ Topics are auto-created on first use (`KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "tru
 
 **Correlation ID**: `X-Request-ID` from HTTP middleware flows through all events as `correlation_id`.
 
-**Shared PostgreSQL DB**: Both `app` and `payment_service` write to the same DB — intentional for Phase 2. Phase 3 would introduce per-service schemas.
+**Shared PostgreSQL DB**: Both `app` and `payment_service` write to the same DB — intentional for this phase.
+
+**OTel trace propagation via Kafka headers**: `inject()` writes W3C `traceparent` header into Kafka message headers; `extract()` in consumers recovers the context. This links HTTP → Kafka publish → Kafka consume spans in Jaeger.
+
+**Metrics servers on 8001/8002**: `payment_service` and `notification_service` use `prometheus_client.start_http_server()` (stdlib thread), not FastAPI. The `app` service exposes `/metrics` as a mounted ASGI sub-app.
+
+**Soft Jaeger dependency**: Services add `jaeger: condition: service_started` in `depends_on` but do not wait for health. `BatchSpanProcessor` queues spans and drops them if Jaeger is unreachable.
 
 **Payment logic**: `payment_processor.py` is intentionally unreliable (configurable failure rate, latency, timeout). `CircuitBreaker` is a custom implementation — educational clarity over brevity.
 
@@ -128,6 +146,7 @@ Configured in `.env` (see `.env.example`). Key ones:
 | `PAYMENT_MAX_RETRIES` | `3` | Max retry attempts on timeout |
 | `CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Failures before circuit opens |
 | `CIRCUIT_BREAKER_RECOVERY_TIMEOUT` | `30` | Seconds before trying half-open |
+| `OTLP_ENDPOINT` | `http://jaeger:4318/v1/traces` | OTLP HTTP exporter endpoint |
 
 ## Project History Log
 
@@ -144,4 +163,10 @@ This file is the fastest way to get up to speed in a new session. Reference it i
 |---|---|
 | FastAPI app | http://localhost:8000 |
 | Interactive docs | http://localhost:8000/docs |
+| App metrics | http://localhost:8000/metrics |
+| Payment metrics | http://localhost:8001 |
+| Notification metrics | http://localhost:8002 |
+| Prometheus | http://localhost:9090 |
+| Grafana | http://localhost:3000 (admin / admin) |
+| Jaeger UI | http://localhost:16686 |
 | PostgreSQL | localhost:5432 (postgres/postgres) |

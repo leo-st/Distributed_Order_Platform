@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     circuit_breaker_failure_threshold: int = 5
     circuit_breaker_recovery_timeout: float = 30.0
 
+    # Observability
+    otlp_endpoint: str = "http://jaeger:4318/v1/traces"
+    metrics_port: int = 8001
+
     model_config = {"env_file": ".env"}
 
 
